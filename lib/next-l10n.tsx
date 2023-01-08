@@ -6,6 +6,8 @@ import {
 import { AppProps } from 'next/app';
 import hoistNonReactStatics from 'hoist-non-react-statics';
 import { FluentBundle, FluentResource } from '@fluent/bundle';
+import * as cheerio from 'cheerio';
+import type { AnyNode } from 'cheerio';
 
 // A generator function responsible for building the sequence
 // of FluentBundle instances in the order of user's language
@@ -19,15 +21,35 @@ function* lazilyParsedBundles(fetchedMessages: Array<[string, string]>) {
   }
 }
 
+/** Make all keys of T optional except for K */
+type RequiredBy<T, K extends keyof T> = Pick<T, K> & Partial<Omit<T, K>>;
+
+type FluentNode = RequiredBy<Node, 'nodeName' | 'textContent'>;
+
+/** @see https://dom.spec.whatwg.org/#dom-node-nodetype */
+const toNodeName = (nodeType: 1 | 9 | 4 | 3 | 8): string => {};
+
+const toDomNode = (cheerioNode: AnyNode): FluentNode => ({
+  nodeName: toNodeName(cheerioNode.cloneNode.nodeType),
+  textContent: '',
+});
+
+const parseMarkup: MarkupParser = (str) => {
+  const $ = cheerio.load(str);
+  // TODO: How can we extract all elements in the form of <element>content</element>
+  // or <element /> and return an array of FluentNode?
+  return $('');
+};
+
 /** Pretend to have parsed HTML markup, but in reality disabling the
 whole ReactOverlays feature.
 */
-const parseMarkup: MarkupParser = (str) => [
-  {
-    nodeName: '#text',
-    textContent: str.toUpperCase(),
-  } as Node,
-];
+//const parseMarkup: MarkupParser = (str) => [
+//{
+//nodeName: '#text',
+//textContent: str.toUpperCase(),
+//} as Node,
+//];
 
 export const appWithLocalization = <Props extends AppProps>(
   WrappedComponent: React.ComponentType<Props>
