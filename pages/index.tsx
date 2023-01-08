@@ -32,8 +32,15 @@ const Home: NextPage = () => {
         <Localized
           id='create-account'
           elems={{
-            confirm: <button></button>,
-            cancel: <a href='/' />,
+            confirm: (
+              <button className='rounded bg-blue-400 px-2 py-1 hover:bg-blue-500'></button>
+            ),
+            cancel: (
+              <Link
+                href='/'
+                className='rounded bg-amber-400 px-2 py-1 hover:bg-amber-500'
+              />
+            ),
           }}
         >
           <p />

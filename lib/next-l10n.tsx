@@ -14,42 +14,56 @@ import type { AnyNode } from 'cheerio';
 // preferences.
 function* lazilyParsedBundles(fetchedMessages: Array<[string, string]>) {
   for (const [locale, messages] of fetchedMessages) {
-    let resource = new FluentResource(messages);
-    let bundle = new FluentBundle(locale);
+    const resource = new FluentResource(messages);
+    const bundle = new FluentBundle(locale);
     bundle.addResource(resource);
     yield bundle;
   }
 }
 
-/** Make all keys of T optional except for K */
-type RequiredBy<T, K extends keyof T> = Pick<T, K> & Partial<Omit<T, K>>;
-
-type FluentNode = RequiredBy<Node, 'nodeName' | 'textContent'>;
-
 /** @see https://dom.spec.whatwg.org/#dom-node-nodetype */
-const toNodeName = (nodeType: 1 | 9 | 4 | 3 | 8): string => {};
-
-const toDomNode = (cheerioNode: AnyNode): FluentNode => ({
-  nodeName: toNodeName(cheerioNode.cloneNode.nodeType),
-  textContent: '',
-});
-
-const parseMarkup: MarkupParser = (str) => {
-  const $ = cheerio.load(str);
-  // TODO: How can we extract all elements in the form of <element>content</element>
-  // or <element /> and return an array of FluentNode?
-  return $('');
+const toNodeName = (element: AnyNode): { name: string; data?: string } => {
+  switch (element.nodeType) {
+    case 1:
+      return {
+        name: element.name.toUpperCase(),
+        data:
+          element.type === 'directive'
+            ? undefined
+            : element.children.reduce(
+                (prev, curr) => (curr.nodeType === 3 ? prev + curr.data : prev),
+                ''
+              ),
+      };
+    case 4:
+      return { name: '#cdata-section' };
+    case 8:
+      return { name: '#comment' };
+    case 9:
+      return { name: '#document' };
+    case 3:
+    default:
+      return { name: '#text', data: element.data };
+  }
 };
 
-/** Pretend to have parsed HTML markup, but in reality disabling the
-whole ReactOverlays feature.
+/** Parse the HTML markup.
+Note: Nested elements are not supported.
 */
-//const parseMarkup: MarkupParser = (str) => [
-//{
-//nodeName: '#text',
-//textContent: str.toUpperCase(),
-//} as Node,
-//];
+const parseMarkup: MarkupParser = (str) => {
+  const $ = cheerio.load(str);
+  const nodes = $('body')
+    .contents()
+    .toArray()
+    .map((element) => {
+      const { name, data } = toNodeName(element);
+      return {
+        nodeName: name,
+        textContent: data,
+      } as Node;
+    });
+  return nodes;
+};
 
 export const appWithLocalization = <Props extends AppProps>(
   WrappedComponent: React.ComponentType<Props>
@@ -58,7 +72,7 @@ export const appWithLocalization = <Props extends AppProps>(
     props: Props & { pageProps: Props['pageProps'] }
   ) => {
     const { l10nMessages } = props.pageProps;
-    let bundles = lazilyParsedBundles(l10nMessages);
+    const bundles = lazilyParsedBundles(l10nMessages);
     const l10n = new ReactLocalization(bundles, parseMarkup);
     return l10n ? (
       <LocalizationProvider l10n={l10n}>
